@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gamaj Bot Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #FAFAFA; --card: #FFFFFF; --text: #000000; --text2: #5F5F5F;
+  --border: #E6E6E6; --accent: #000000;
+}
+html[data-theme="dark"] {
+  --bg: #0A0A0A; --card: #141414; --text: #FFFFFF; --text2: #8A8A8A;
+  --border: #262626; --accent: #FFFFFF;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Vazirmatn', sans-serif; background: var(--bg); color: var(--text);
+  line-height: 1.6; transition: background .25s, color .25s;
+}
+.container { max-width: 960px; margin: 0 auto; padding: 24px; }
+header { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; }
+.brand .mark { width: 34px; height: 34px; }
+.theme-btn {
+  border: 1px solid var(--border); background: var(--card); color: var(--text);
+  border-radius: 999px; width: 38px; height: 38px; cursor: pointer; font-size: 1rem;
+}
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 18px; }
+.card h2 { font-size: 1rem; font-weight: 800; margin-bottom: 14px; }
+.login-card { max-width: 420px; margin: 60px auto; text-align: center; }
+.login-card input {
+  width: 100%; padding: 12px 14px; margin: 14px 0; border-radius: 12px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  font: inherit; text-align: center; letter-spacing: .1em;
+}
+.btn {
+  display: inline-block; width: 100%; padding: 12px; border-radius: 999px;
+  background: var(--accent); color: var(--bg); font: inherit; font-weight: 800;
+  border: none; cursor: pointer;
+}
+.btn:disabled { opacity: .5; cursor: wait; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+.stat { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px; text-align: center; }
+.stat .n { font-size: 1.5rem; font-weight: 800; }
+.stat .l { font-size: .8rem; color: var(--text2); font-weight: 600; }
+table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+th, td { padding: 10px 12px; text-align: right; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: 0; }
+th { font-weight: 800; color: var(--text2); font-size: .8rem; }
+.badge { padding: 3px 10px; border-radius: 999px; font-size: .72rem; font-weight: 700; }
+.badge.pending { background: #F5C51822; color: #B7791F; }
+.badge.paid { background: #0A8F3C22; color: #0A8F3C; }
+.badge.expired, .badge.failed { background: #C5303022; color: #C53030; }
+.muted { color: var(--text2); font-size: .82rem; }
+.err { color: #C53030; font-size: .85rem; margin-top: 10px; }
+footer { text-align: center; padding: 26px 0 12px; color: var(--text2); font-size: .8rem; }
+@media (max-width: 640px) { .stats { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 100 100"><circle cx="36" cy="28" r="7" fill="currentColor"/><circle cx="64" cy="28" r="7" fill="currentColor"/><circle cx="50" cy="41" r="18" fill="var(--bg)" stroke="currentColor" stroke-width="2.5"/><ellipse cx="43" cy="41" rx="4" ry="5.2" transform="rotate(18 43 41)" fill="currentColor"/><ellipse cx="57" cy="41" rx="4" ry="5.2" transform="rotate(-18 57 41)" fill="currentColor"/><ellipse cx="50" cy="47" rx="2" ry="1.3" fill="currentColor"/></svg>
+      <span>Gamaj Bot Panel</span>
+    </div>
+    <button class="theme-btn" id="themeBtn" title="Theme">◑</button>
+  </header>
+
+  <!-- Login -->
+  <div class="card login-card" id="loginCard">
+    <h2>ورود مدیر ربات</h2>
+    <p class="muted">شناسه عددی تلگرام مدیر (admin_id در کانفیگ ربات) را وارد کنید.</p>
+    <input id="adminId" inputmode="numeric" placeholder="admin_id">
+    <button class="btn" id="loginBtn">ورود</button>
+    <div class="err" id="loginErr"></div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard" style="display:none">
+    <div class="stats">
+      <div class="stat"><div class="n" id="stPlans">—</div><div class="l">پلن‌های فعال</div></div>
+      <div class="stat"><div class="n" id="stOrders">—</div><div class="l">سفارش‌ها</div></div>
+      <div class="stat"><div class="n" id="stPaid">—</div><div class="l">پرداخت‌شده</div></div>
+    </div>
+
+    <div class="card">
+      <h2>پلن‌های فروش</h2>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>نام</th><th>قیمت (تومان)</th><th>حجم</th><th>مدت (روز)</th></tr></thead>
+          <tbody id="plansBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>سفارش‌های اخیر</h2>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>سفارش</th><th>پلن</th><th>مبلغ</th><th>وضعیت</th></tr></thead>
+          <tbody id="ordersBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>وضعیت اتصال</h2>
+      <div class="muted" id="connInfo">—</div>
+    </div>
+
+    <footer>Coded for Gamaj by AsliCode.</footer>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var KEY = "gamaj-bot-panel";
+  try { if (localStorage.getItem(KEY + "-theme") === "dark") document.documentElement.setAttribute("data-theme", "dark"); } catch (e) {}
+
+  document.getElementById("themeBtn").addEventListener("click", function () {
+    var el = document.documentElement;
+    var dark = el.getAttribute("data-theme") === "dark";
+    el.setAttribute("data-theme", dark ? "light" : "dark");
+    try { localStorage.setItem(KEY + "-theme", dark ? "light" : "dark"); } catch (e) {}
+  });
+
+  function api(path) {
+    return fetch("/panel/api" + path, { credentials: "same-origin" })
+      .then(function (res) {
+        if (res.status === 401) throw new Error("unauthorized");
+        if (!res.ok) throw new Error("api " + res.status);
+        return res.json();
+      });
+  }
+
+  function fmt(n) { return Number(n || 0).toLocaleString("fa-IR"); }
+
+  function render(data) {
+    var plans = data.plans || [];
+    var orders = data.orders || [];
+    var paid = orders.filter(function (o) { return o.status === "paid" || o.status === "provisioned"; }).length;
+
+    document.getElementById("stPlans").textContent = fmt(plans.length);
+    document.getElementById("stOrders").textContent = fmt(orders.length);
+    document.getElementById("stPaid").textContent = fmt(paid);
+
+    document.getElementById("plansBody").innerHTML = plans.map(function (p) {
+      return "<tr><td>" + esc(p.name) + "</td><td>" + fmt(p.price) + "</td><td>" +
+        (p.data_limit ? fmt(Math.round(p.data_limit / 1073741824)) + " GB" : "نامحدود") + "</td><td>" +
+        fmt(p.duration_days) + "</td></tr>";
+    }).join("") || '<tr><td colspan="4" class="muted">پلنی ثبت نشده است</td></tr>';
+
+    document.getElementById("ordersBody").innerHTML = orders.map(function (o) {
+      return "<tr><td class='muted'>" + esc(o.id) + "</td><td>" + esc(o.plan_name || "—") + "</td><td>" +
+        fmt(o.amount) + "</td><td><span class='badge " + esc(o.status) + "'>" + esc(o.status) + "</span></td></tr>";
+    }).join("") || '<tr><td colspan="4" class="muted">سفارشی ثبت نشده است</td></tr>';
+
+    document.getElementById("connInfo").textContent =
+      "اتصال با گمج پنل برقرار است · Gamaj Bot Panel is.0.0.1 · تمام داده‌ها از Gamaj API خوانده می‌شود";
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function showDashboard() {
+    document.getElementById("loginCard").style.display = "none";
+    document.getElementById("dashboard").style.display = "";
+    refresh();
+  }
+
+  function refresh() {
+    Promise.all([api("/bot/plans"), api("/bot/orders?limit=50")])
+      .then(function (results) {
+        render({ plans: results[0], orders: results[1] });
+      })
+      .catch(function (err) {
+        if (err.message === "unauthorized") { showLogin(); return; }
+        document.getElementById("connInfo").textContent = "خطا در دریافت داده‌ها از گمج پنل — اتصال را بررسی کنید";
+      });
+  }
+
+  function showLogin() {
+    document.getElementById("loginCard").style.display = "";
+    document.getElementById("dashboard").style.display = "none";
+  }
+
+  document.getElementById("loginBtn").addEventListener("click", function () {
+    var btn = this;
+    var id = document.getElementById("adminId").value.trim();
+    document.getElementById("loginErr").textContent = "";
+    if (!/^\d+$/.test(id)) { document.getElementById("loginErr").textContent = "شناسه باید عددی باشد"; return; }
+    btn.disabled = true;
+    fetch("/panel/api/admin", {
+      credentials: "same-origin",
+      headers: { "X-Panel-Admin-Id": id }
+    })
+      .then(function (res) {
+        if (res.status === 401) throw new Error("شناسه واردشده با admin_id ربات مطابقت ندارد");
+        if (!res.ok) throw new Error("اتصال به گمج پنل برقرار نشد");
+        document.cookie = "gamaj_bot_panel=" + encodeURIComponent(id) + "; path=/panel; SameSite=Strict";
+        showDashboard();
+      })
+      .catch(function (err) { document.getElementById("loginErr").textContent = err.message; })
+      .finally(function () { btn.disabled = false; });
+  });
+
+  // Auto-resume an existing session: verify the stored ID by hitting the API.
+  var stored = null;
+  try { stored = decodeURIComponent((document.cookie.match(/gamaj_bot_panel=([^;]+)/) || [])[1] || ""); } catch (e) {}
+  if (stored && /^\d+$/.test(stored)) {
+    fetch("/panel/api/bot/plans", { credentials: "same-origin" })
+      .then(function (res) { if (res.ok) showDashboard(); else showLogin(); })
+      .catch(function () { showLogin(); });
+  }
+})();
+</script>
+</body>
+</html>

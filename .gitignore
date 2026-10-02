@@ -1,0 +1,32 @@
+# Gamaj Bot — ignored files
+
+# Environment / secrets
+.env
+.gh-token
+*.key
+.gamaj-bot.json
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Runtime data
+bin/
+data/
+dist/
+
+# Logs, caches and temp files
+*.log
+.DS_Store
+.tmp*
+tmp/
+artifacts/
+
+# Database files
+*.sqlite3
+*.db
