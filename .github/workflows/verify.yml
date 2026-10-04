@@ -8,6 +8,8 @@ on:
     tags:
       - "is.*"
   pull_request:
+    branches:
+      - Asli
 
 permissions:
   contents: read
@@ -45,6 +47,24 @@ jobs:
         run: |
           bash -n scripts/install.sh
           bash -n scripts/manage.sh
+          bash -n scripts/tests/e2e-bot-install.sh
+
+  install-e2e:
+    name: Install on a fresh runner and check the systemd unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+
+      - name: Run bot install end-to-end test
+        run: sudo env "PATH=$PATH" bash scripts/tests/e2e-bot-install.sh
 
   release:
     name: Attach binary to the is.* release
