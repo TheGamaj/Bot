@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./docs/assets/gamaj-logo.svg" alt="Gamaj" width="104" height="104">
+<img src="./docs/assets/gamaj-mark.svg" alt="Gamaj" width="104" height="104">
 
 <h1>GAMAJ</h1>
 

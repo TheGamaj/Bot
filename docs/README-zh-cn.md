@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img src="./assets/gamaj-logo.svg" alt="Gamaj" width="104" height="104">
+  <img src="./assets/gamaj-mark.svg" alt="Gamaj" width="104" height="104">
 </p>
 
 <h1>GAMAJ</h1>

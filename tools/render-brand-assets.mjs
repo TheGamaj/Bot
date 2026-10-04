@@ -1,35 +1,60 @@
 // Renders the Gamaj brand mark to PNG/ICO favicon assets.
 //
-// The mark is defined once as vector geometry in the SVG files under
-// assets/img/. Favicon raster sizes are generated from the same geometry here
-// so the tab icon can never drift from the logo:
+// The mark is defined once as vector geometry, in the 64x64 unit grid taken
+// from the Gamaj brand identity reference, and the favicon raster sizes are
+// generated from that same geometry here so the tab icon can never drift from
+// the logo:
 //
 //   node tools/render-brand-assets.mjs <output-dir>
 //
-// Geometry (512x512 viewBox, matching assets/img/gamaj-logo.svg):
-//   - a rounded tile
-//   - a geometric G cut out of the tile: an annulus with a gap in the
-//     upper-right quadrant plus the horizontal bar
+// Geometry (64x64 unit grid, matching assets/img/gamaj-mark.svg):
+//   - three equal squares in the top-left, top-right and bottom-left cells
+//   - one smaller square in the bottom-right cell, creating the deliberate
+//     asymmetry the identity calls for
 //
-// The raster uses an opaque dark tile with a white G so the icon stays legible
-// on both light and dark browser chrome.
+// The raster uses an opaque black tile with a white mark so the icon stays
+// legible on both light and dark browser chrome.
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { deflateSync } from "node:zlib";
 
 const SIZE = 512;
-const TILE = { x: 24, y: 24, w: 464, h: 464, r: 128 };
-const RING = { cx: 256, cy: 256, outer: 142, inner: 82 };
-// The G's opening: the ring is cut between these polar angles (degrees, math
-// convention with y pointing up).
-const GAP = { from: -3, to: 53.9 };
-const BAR = { x0: 288, x1: 368, y0: 220, y1: 280 };
 
-const TILE_COLOR = [0x0b, 0x0b, 0x0f];
+// The mark in its native 64x64 unit grid. Three 20x20 modules on a 28 unit
+// pitch (20 module + 8 gap, offset 8) plus one 12x12 module bottom-right.
+const UNIT_MARK = [
+	{ x: 8, y: 8, size: 20 },
+	{ x: 36, y: 8, size: 20 },
+	{ x: 8, y: 36, size: 20 },
+	{ x: 36, y: 44, size: 12 },
+];
+// The mark's bounding box in that grid: 8..56 on both axes, so 48x48 units.
+const MARK_BOX = { x: 8, y: 8, span: 48 };
+
+// The app-icon container: a black rounded square holding the white mark, per
+// the brand identity (22% corner radius, mark inset to two thirds of the tile).
+const TILE_RADIUS_RATIO = 0.22;
+const MARK_TILE_RATIO = 2 / 3;
+
+const TILE_COLOR = [0x00, 0x00, 0x00];
 const MARK_COLOR = [0xff, 0xff, 0xff];
 
-function insideRoundedRect(x, y, { x: rx, y: ry, w, h, r }) {
+// Converts the 64 unit mark into 512 pixel modules centred in the tile.
+function markModules() {
+	const scale = (SIZE * MARK_TILE_RATIO) / MARK_BOX.span;
+	const offset = (SIZE - MARK_BOX.span * scale) / 2 - MARK_BOX.x * scale;
+	return UNIT_MARK.map(({ x, y, size }) => ({
+		x: x * scale + offset,
+		y: y * scale + offset,
+		size: size * scale,
+	}));
+}
+
+const MODULES = markModules();
+const TILE_RADIUS = SIZE * TILE_RADIUS_RATIO;
+
+function insideRoundedRect(x, y, { rx, ry, w, h, r }) {
 	const cx = Math.min(Math.max(x, rx + r), rx + w - r);
 	const cy = Math.min(Math.max(y, ry + r), ry + h - r);
 	const dx = x - cx;
@@ -38,14 +63,9 @@ function insideRoundedRect(x, y, { x: rx, y: ry, w, h, r }) {
 }
 
 function insideMark(x, y) {
-	const dx = x - RING.cx;
-	const dy = RING.cy - y; // flip to math convention
-	const radius = Math.hypot(dx, dy);
-	if (radius >= RING.inner && radius <= RING.outer) {
-		const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
-		if (angle < GAP.from || angle > GAP.to) return true;
-	}
-	return x >= BAR.x0 && x <= BAR.x1 && y >= BAR.y0 && y <= BAR.y1;
+	return MODULES.some(
+		(m) => x >= m.x && x <= m.x + m.size && y >= m.y && y <= m.y + m.size,
+	);
 }
 
 // Renders the mark at `size` with 4x4 supersampling and returns RGBA pixels.
@@ -61,7 +81,14 @@ function render(size) {
 				for (let sx = 0; sx < samples; sx++) {
 					const x = (px + (sx + 0.5) / samples) * scale;
 					const y = (py + (sy + 0.5) / samples) * scale;
-					if (!insideRoundedRect(x, y, TILE)) continue;
+					if (!insideRoundedRect(x, y, {
+						rx: 0,
+						ry: 0,
+						w: SIZE,
+						h: SIZE,
+						r: TILE_RADIUS,
+					}))
+						continue;
 					tileHits++;
 					if (insideMark(x, y)) markHits++;
 				}
@@ -73,7 +100,9 @@ function render(size) {
 			for (let channel = 0; channel < 3; channel++) {
 				const tile = TILE_COLOR[channel];
 				const mark = MARK_COLOR[channel];
-				pixels[offset + channel] = Math.round(tile + (mark - tile) * markShare);
+				pixels[offset + channel] = Math.round(
+					tile + (mark - tile) * markShare,
+				);
 			}
 			pixels[offset + 3] = alpha;
 		}
@@ -175,3 +204,19 @@ writeFileSync(
 	encodeIco(icoSizes.map((size) => ({ size, png: encodePng(size, render(size)) }))),
 );
 console.log(`wrote favicon.ico (${icoSizes.join("/")})`);
+
+// The mask icon Safari pins to the tab is a solid monochrome silhouette, so it
+// is generated here too instead of being hand-maintained per repository.
+const maskModules = MODULES.map(
+	({ x, y, size: s }) =>
+		`M${x.toFixed(2)} ${y.toFixed(2)}h${s.toFixed(2)}v${s.toFixed(2)}h-${s.toFixed(2)}z`,
+).join("");
+writeFileSync(
+	join(outputDir, "safari-pinned-tab.svg"),
+	`<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}">
+  <!-- GAMAJ mark (monochrome): four modules on a modular grid. -->
+  <path d="${maskModules}" fill="#000000"/>
+</svg>
+`,
+);
+console.log("wrote safari-pinned-tab.svg");
