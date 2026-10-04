@@ -5,9 +5,13 @@
 #   1. a workflow that does not exist in this repository,
 #   2. a branch other than the Gamaj branch (`Asli`) in trigger filters,
 #      or a foreign branch of a Gamaj repository in any URL,
-#   3. Docker or GHCR in any form.
+#   3. Docker or GHCR in any form,
+#   4. a release tag filter that is not the `is.*` glob or a concrete
+#      `is.<major>.<minor>.<patch>` tag.
 # It also re-verifies the shared brand assets against the committed
-# `brand-assets.sha256` manifest, so the raster identity cannot drift.
+# `brand-assets.sha256` manifest, and checks that the release asset names a
+# repository builds agree with the names its installers request, so neither the
+# raster identity nor the release contract can drift unnoticed.
 #
 # Run locally: bash scripts/ci/workflow-guard.sh
 
@@ -105,6 +109,30 @@ if [ "${#WF_FILES[@]}" -gt 0 ]; then
 fi
 
 # ---------------------------------------------------------------------------
+# 2c. Release tag filters must follow the Gamaj `is.X.Y.Z` scheme.
+# ---------------------------------------------------------------------------
+for wf in "${WF_FILES[@]}"; do
+  while IFS= read -r tag; do
+    [ -n "$tag" ] || continue
+    if [ "$tag" = "is.*" ]; then
+      continue
+    fi
+    if [[ "$tag" =~ ^is\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      continue
+    fi
+    fail_with "$wf has a malformed release tag filter '$tag'; only 'is.*' or 'is.<major>.<minor>.<patch>' are allowed"
+  done < <(awk '
+    /^on:/ { in_on = 1; next }
+    in_on && /^[^[:space:]]/ { in_on = 0 }
+    in_on && /^[[:space:]]+tags:/ { in_tags = 1; next }
+    in_tags && /^[[:space:]]+- / {
+      sub(/^[[:space:]]+- /, ""); gsub(/["\047]/, ""); print; next
+    }
+    in_tags { in_tags = 0 }
+  ' "$wf" | tr -d '\r')
+done
+
+# ---------------------------------------------------------------------------
 # 4. Shared brand assets must match the committed hash manifest.
 # ---------------------------------------------------------------------------
 while IFS= read -r manifest; do
@@ -118,6 +146,89 @@ while IFS= read -r manifest; do
   fi
 done < <(find . -name 'brand-assets.sha256' \
   -not -path './node_modules/*' -not -path './.git/*' 2>/dev/null)
+
+# ---------------------------------------------------------------------------
+# 4b. Regenerate the brand rasters from the in-repo render tool and confirm
+#     they still match the committed files, so the renderer and the assets
+#     cannot drift apart.
+# ---------------------------------------------------------------------------
+if [ -f scripts/ci/brand-assets-check.sh ]; then
+  if bash scripts/ci/brand-assets-check.sh >/dev/null 2>&1; then
+    note "brand rasters regenerate cleanly"
+  else
+    fail_with "brand rasters drifted from tools/render-brand-assets.mjs; run 'bash scripts/ci/brand-assets-check.sh' for details"
+  fi
+else
+  fail_with "missing scripts/ci/brand-assets-check.sh"
+fi
+
+# ---------------------------------------------------------------------------
+# 5. Release asset names must agree between the workflows and the installers.
+#
+# Each repository builds one primary Linux release asset that its installer
+# downloads. Normalise the version/architecture placeholders on both sides and
+# require the exact same shape, so renaming an asset on one side only is caught
+# here instead of at install time.
+# ---------------------------------------------------------------------------
+module_name="$(awk 'NR==1{print $2}' go.mod 2>/dev/null | tr -d '\r' || true)"
+asset_workflow=""
+asset_installer=""
+asset_shape=""
+asset_label=""
+case "$module_name" in
+  github.com/TheGamaj/Panel)
+    asset_workflow=".github/workflows/binary-build.yml"
+    asset_installer="scripts/gamaj/gamaj.sh"
+    asset_shape='gamaj-linux-[A-Za-z0-9_.@-]+\.tar\.gz'
+    asset_label="Panel linux package"
+    ;;
+  github.com/TheGamaj/Node)
+    asset_workflow=".github/workflows/binary-build.yml"
+    asset_installer="scripts/gamaj/gamaj-node.sh"
+    asset_shape='gamaj-node-[A-Za-z0-9_.@-]+-linux-[A-Za-z0-9_.@-]+'
+    asset_label="Node linux binary"
+    ;;
+  github.com/TheGamaj/Bot)
+    asset_workflow=".github/workflows/verify.yml"
+    asset_installer="scripts/install.sh"
+    asset_shape='gamaj-bot-linux-[A-Za-z0-9_.@-]+'
+    asset_label="Bot linux binary"
+    ;;
+  *)
+    note "no release asset contract declared for module '${module_name:-unknown}'"
+    ;;
+esac
+
+normalize_assets() {
+  # Collapse build-time placeholders and architecture tokens to `@`, strip
+  # quotes, then list the distinct `gamaj-...` asset names.
+  sed -E \
+    -e 's/\$\{\{[^}]*\}\}/@/g' \
+    -e 's/\$\{[^}]*\}/@/g' \
+    -e 's/\$[A-Za-z_][A-Za-z0-9_]*/@/g' \
+    -e 's/["'\'']//g' \
+    -e 's/(^|[^A-Za-z0-9])(386|amd64|arm64|armv5|armv6|armv7|s390x|x86_64|aarch64)([^A-Za-z0-9]|$)/\1@\3/g' \
+    -e 's/\.sha256$//' \
+    "$1" 2>/dev/null | grep -oE 'gamaj-[A-Za-z0-9_.@-]+' | sort -u || true
+}
+
+if [ -n "$asset_workflow" ]; then
+  if [ ! -f "$asset_workflow" ]; then
+    fail_with "missing build workflow for the $asset_label contract: $asset_workflow"
+  fi
+  if [ ! -f "$asset_installer" ]; then
+    fail_with "missing installer for the $asset_label contract: $asset_installer"
+  fi
+  if [ -f "$asset_workflow" ] && [ -f "$asset_installer" ]; then
+    if ! normalize_assets "$asset_workflow" | grep -Eq "$asset_shape"; then
+      fail_with "$asset_workflow no longer builds a $asset_label matching '$asset_shape'"
+    fi
+    if ! normalize_assets "$asset_installer" | grep -Eq "$asset_shape"; then
+      fail_with "$asset_installer downloads a $asset_label that drifted from '$asset_shape'"
+    fi
+    note "release asset verified: $asset_label"
+  fi
+fi
 
 if [ "$failed" -ne 0 ]; then
   printf 'workflow-guard: FAILED\n' >&2

@@ -20,3 +20,4 @@
 site.webmanifest text eol=lf
 browserconfig.xml text eol=lf
 brand-assets.sha256 text eol=lf
+*.mjs text eol=lf

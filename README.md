@@ -142,6 +142,18 @@ sudo ./scripts/manage.sh {status|logs|start|stop|restart|config|webhook|update|u
 - کال‌بک پرداخت replay-safe است و هیچ‌گاه بدون استعلام رسمی تسویه نمی‌کند.
 - secretها هرگز در لاگ چاپ نمی‌شوند.
 
+## برند و آیکن‌ها
+
+ست آیکن‌های `docs/assets/` از هندسهٔ خود حرف G رندر می‌شود، نه دستی:
+
+```bash
+node tools/render-brand-assets.mjs docs/assets
+bash scripts/ci/brand-assets-check.sh   # رندر مجدد و مقایسه با brand-assets.sha256
+```
+
+اگر خروجی رندر تازه با فایل‌های commit‌شده فرق کند، اسکریپت خطا می‌دهد. همین بررسی
+داخل جاب `workflow-guard` در CI هم اجرا می‌شود.
+
 ## لایسنس
 
 © Gamaj | گمج — تمام حقوق محفوظ است.
