@@ -2,7 +2,7 @@
 
 **Gamaj Bot | گمج بات** — نسخه `is.0.0.1` — Mini App: `is.0.0.1`
 
-> Coded by AsliCode
+> Gamaj is.0.0.1
 
 - Repository: `GitHub.com/TheGamaj/Bot`
 - کانال تلگرام گمج: [t.me/TheGamaj](https://t.me/TheGamaj)
@@ -120,4 +120,4 @@ journalctl -u gamaj-bot -f
 
 ---
 
-© Gamaj | گمج — Coded by AsliCode
+© Gamaj | گمج — نسخه is.0.0.1

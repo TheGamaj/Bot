@@ -107,4 +107,4 @@ Without public HTTPS, run the bot in long-polling mode (leave `webhook_base_url`
 
 ## License
 
-© Gamaj — all rights reserved. Coded by AsliCode.
+© Gamaj — all rights reserved. Version is.0.0.1.

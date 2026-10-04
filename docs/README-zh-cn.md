@@ -106,4 +106,4 @@ sudo ./scripts/manage.sh {start|stop|restart|status|logs|update|uninstall}
 
 ## 许可
 
-© Gamaj — 保留所有权利。Coded by AsliCode。
+© Gamaj — 保留所有权利。版本 is.0.0.1。

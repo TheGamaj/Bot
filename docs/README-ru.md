@@ -106,4 +106,4 @@ sudo ./scripts/manage.sh {start|stop|restart|status|logs|update|uninstall}
 
 ## Лицензия
 
-© Gamaj — все права защищены. Coded by AsliCode.
+© Gamaj — все права защищены. Версия is.0.0.1.

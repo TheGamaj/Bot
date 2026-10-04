@@ -30,7 +30,7 @@
 - کانال سازنده: **t.me/AsliCode**
 - نسخه: `is.0.0.1` — Mini App: `is.0.0.1`
 
-> Coded by AsliCode
+> Gamaj is.0.0.1
 
 ---
 
@@ -158,4 +158,4 @@ bash scripts/ci/brand-assets-check.sh   # رندر مجدد و مقایسه با
 
 © Gamaj | گمج — تمام حقوق محفوظ است.
 
-Coded by AsliCode
+Gamaj is.0.0.1
