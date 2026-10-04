@@ -5,6 +5,10 @@
   <a href="./README-zh-cn.md">简体中文</a>
 </p>
 
+<p align="center">
+  <img src="./assets/gamaj-logo.svg" alt="Gamaj" width="104" height="104">
+</p>
+
 <h1>GAMAJ</h1>
 
 ### Bot

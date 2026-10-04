@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="./docs/assets/gamaj-logo.svg" alt="Gamaj" width="104" height="104">
+
 <h1>GAMAJ</h1>
 
 ### Bot
