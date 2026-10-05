@@ -1,0 +1,45 @@
+name: Brand Guard
+
+# The bot panel is a standalone HTML document with its own stylesheet, which
+# makes it the easiest Gamaj surface to drift: nothing in the dashboard's
+# token purge reaches it, so it can carry a palette of its own indefinitely
+# without anything noticing. It used to. This job runs the palette guard over
+# internal/botpanel so that cannot happen again.
+#
+# The guard is a vendored copy of Web/tools/check-brand-geometry.cjs. GAMAJ_PALETTE_DIRS
+# limits it to the surface this repository owns.
+
+on:
+  push:
+    branches:
+      - Asli
+  pull_request:
+    branches:
+      - "**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  brand-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GAMAJ_BRAND_ROOT: .
+      GAMAJ_PALETTE_DIRS: internal/botpanel
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js 20 LTS
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - name: Check palette and retired branding
+        run: node tools/check-brand-geometry.cjs
