@@ -30,3 +30,6 @@ artifacts/
 # Database files
 *.sqlite3
 *.db
+
+# Credentials never belong in version control.
+.gh-token
