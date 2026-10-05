@@ -143,11 +143,25 @@ const LITERAL_EXEMPT = new Set([
  * Returns the line numbers of any `:root { ... }` / `html[data-theme] { ... }`
  * block, i.e. the theme's own declarations.
  */
+/**
+ * Lines inside a palette *definition* block are the one place a raw value is
+ * allowed, because naming the ramp is what the rest of the file then points
+ * at. The blocks recognised are the shared roots, and the standalone
+ * surfaces that declare their own colour-mode blocks: the subscription page
+ * keeps `.rb-theme-light` / `.rb-theme-dark` beside its `:root` because it is
+ * a single HTML file served on its own, with no shared stylesheet to inherit
+ * from.
+ */
 function paletteDefinitionLines(lines) {
 	const exempt = new Set();
 	let open = false;
 	lines.forEach((line, i) => {
-		if (!open && /^\s*(:root|html\[data-theme[^\]]*\])\s*\{/.test(line)) {
+		if (
+			!open &&
+			/^\s*(:root|html\[data-theme[^\]]*\]|\.[a-z0-9_-]*theme-(light|dark))\s*\{/.test(
+				line,
+			)
+		) {
 			open = true;
 		}
 		if (open) {
@@ -285,18 +299,76 @@ let paletteScanned = 0;
  * dashboard: the bot panel is a standalone HTML file and the node ships no
  * UI of its own. Paths are relative to the workspace root.
  */
+/**
+ * Every Gamaj surface is governed by the palette rule, not just the
+ * dashboard: the bot panel is a standalone HTML file, and the default
+ * subscription page is a third one that users reach at their own link.
+ *
+ * An entry may be a directory or a single file. The subscription directory
+ * holds two alternate templates that are opt-in and not yet on the palette,
+ * so only the default one is named here rather than opting the whole folder
+ * in. Paths are relative to the workspace root.
+ */
 const PALETTE_DIRS = (
 	process.env.GAMAJ_PALETTE_DIRS ??
-	"Panel/dashboard/src,Panel/dashboard/public,Bot/internal/botpanel"
+	"Panel/dashboard/src,Panel/dashboard/public,Panel/templates/subscription/index.html,Bot/internal/botpanel"
 )
 	.split(",")
 	.map((entry) => entry.trim())
 	.filter(Boolean)
 	.map((entry) => path.join(ROOT, entry));
 
+/**
+ * Check one file against the palette rule. `rel` is the path used for the
+ * exemption lists, which are written relative to a governed root.
+ */
+function checkPaletteFile(p, rel) {
+	if (!LITERAL_EXT.test(p)) return;
+	const text = fs.readFileSync(p, "utf8");
+	paletteScanned++;
+	const lines = text.split("\n");
+	const definitionLines = paletteDefinitionLines(lines);
+	lines.forEach((line, i) => {
+		OFF_PALETTE_USE.lastIndex = 0;
+		let match;
+		const seen = new Set();
+		while ((match = OFF_PALETTE_USE.exec(line)) !== null) {
+			if (seen.has(match[0])) continue;
+			seen.add(match[0]);
+			paletteOffenders.push(
+				`${path.relative(ROOT, p)}:${i + 1} -> ${match[0]}`,
+			);
+		}
+		// A token purge cannot see a colour written out by hand, so a
+		// raw literal is policed here too.
+		if (
+			LITERAL_EXEMPT.has(rel) ||
+			definitionLines.has(i) ||
+			LITERAL_EXEMPT_DIRS.some((dir) => rel.startsWith(dir))
+		) {
+			return;
+		}
+		RAW_COLOUR.lastIndex = 0;
+		const raw = new Set();
+		while ((match = RAW_COLOUR.exec(line)) !== null) {
+			raw.add(match[0]);
+		}
+		for (const value of raw) {
+			paletteOffenders.push(
+				`${path.relative(ROOT, p)}:${i + 1} -> raw literal ${value}`,
+			);
+		}
+	});
+}
+
 for (const PALETTE_DIR of PALETTE_DIRS) {
 if (!fs.existsSync(PALETTE_DIR)) continue;
 {
+	// A single file entry is checked directly; a directory is walked.
+	if (fs.statSync(PALETTE_DIR).isFile()) {
+		checkPaletteFile(PALETTE_DIR, path.basename(PALETTE_DIR));
+		continue;
+	}
 	const walkPalette = (dir) => {
 		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
 			const p = path.join(dir, entry.name);
@@ -305,45 +377,11 @@ if (!fs.existsSync(PALETTE_DIR)) continue;
 				walkPalette(p);
 				continue;
 			}
-			if (!entry.isFile() || !LITERAL_EXT.test(entry.name)) continue;
+			if (!entry.isFile()) continue;
 			const rel = path
 				.relative(PALETTE_DIR, p)
 				.replace(/\\/g, "/");
-			const text = fs.readFileSync(p, "utf8");
-			paletteScanned++;
-			const lines = text.split("\n");
-			const definitionLines = paletteDefinitionLines(lines);
-			lines.forEach((line, i) => {
-				OFF_PALETTE_USE.lastIndex = 0;
-				let match;
-				const seen = new Set();
-				while ((match = OFF_PALETTE_USE.exec(line)) !== null) {
-					if (seen.has(match[0])) continue;
-					seen.add(match[0]);
-					paletteOffenders.push(
-						`${path.relative(ROOT, p)}:${i + 1} -> ${match[0]}`,
-					);
-				}
-				// A token purge cannot see a colour written out by hand, so a
-				// raw literal is policed here too.
-				if (
-					LITERAL_EXEMPT.has(rel) ||
-					definitionLines.has(i) ||
-					LITERAL_EXEMPT_DIRS.some((dir) => rel.startsWith(dir))
-				) {
-					return;
-				}
-				RAW_COLOUR.lastIndex = 0;
-				const raw = new Set();
-				while ((match = RAW_COLOUR.exec(line)) !== null) {
-					raw.add(match[0]);
-				}
-				for (const value of raw) {
-					paletteOffenders.push(
-						`${path.relative(ROOT, p)}:${i + 1} -> raw literal ${value}`,
-					);
-				}
-			});
+			checkPaletteFile(p, rel);
 		}
 	};
 	walkPalette(PALETTE_DIR);
