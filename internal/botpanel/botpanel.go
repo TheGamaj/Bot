@@ -7,8 +7,15 @@
 package botpanel
 
 import (
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
+	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 )
 
@@ -18,20 +25,79 @@ var indexHTML string
 // Version is the Gamaj Bot Panel release version.
 const Version = "is.0.0.1"
 
+const (
+	// sessionCookie is the panel session cookie. Its value is an HMAC over the
+	// configured admin ID, so the value alone cannot be forged: knowing the
+	// numeric admin ID is no longer enough to mint a session.
+	sessionCookie = "gamaj_bot_panel"
+	// adminHeader carries the candidate admin ID during login.
+	adminHeader = "X-Panel-Admin-Id"
+	// proxyPrefix is the only part of the Gamaj API this panel may reach. The
+	// bot's API key is attached to every proxied call, so exposing anything
+	// else would let a browser borrow the bot's panel-wide authority.
+	proxyPrefix = "api/bot/"
+)
+
 // Handler serves the Bot Panel page on /panel and its JSON proxy on
-// /panel/api/*. The login gate compares the submitted admin ID against the
-// bot configuration's admin_id using constant-time comparison.
+// /panel/api/*. Login compares the submitted admin ID against the bot
+// configuration's admin_id using constant-time comparison and then issues a
+// signed session cookie.
 func Handler(adminID string, proxy http.Handler) http.Handler {
+	sessionKey := make([]byte, 32)
+	if _, err := rand.Read(sessionKey); err != nil {
+		// A predictable key would make every session forgeable, so refuse to
+		// serve the panel at all rather than fall back to a weak secret.
+		panic("botpanel: cannot seed the session key: " + err.Error())
+	}
 	mux := http.NewServeMux()
-	panel := &panelServer{adminID: strings.TrimSpace(adminID), proxy: proxy}
+	panel := &panelServer{
+		adminID:    strings.TrimSpace(adminID),
+		proxy:      proxy,
+		sessionKey: sessionKey,
+	}
 	mux.Handle("/panel", http.HandlerFunc(panel.handlePage))
 	mux.Handle("/panel/", http.HandlerFunc(panel.handle))
 	return mux
 }
 
 type panelServer struct {
-	adminID string
-	proxy   http.Handler
+	adminID    string
+	proxy      http.Handler
+	sessionKey []byte
+}
+
+// sessionToken derives the cookie value from the admin ID. The key is random
+// per process, so a token from an earlier run — or from another installation —
+// never validates.
+func (p *panelServer) sessionToken() string {
+	mac := hmac.New(sha256.New, p.sessionKey)
+	mac.Write([]byte(p.adminID))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// NewAPIProxy forwards the panel's data calls to the Gamaj API using the bot's
+// dedicated API key. The path arrives already reduced to /bot/... because the
+// panel handler refuses every other prefix before reaching the proxy.
+func NewAPIProxy(target *url.URL, apiKey string) http.Handler {
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	director := proxy.Director
+	proxy.Director = func(r *http.Request) {
+		director(r)
+		r.URL.Path = "/api" + r.URL.Path
+		r.URL.RawPath = ""
+		// The panel session cookie is strictly for the browser and must never
+		// travel upstream; the API key is the bot's own credential.
+		r.Header.Del("Cookie")
+		r.Header.Set("Authorization", "Bearer "+apiKey)
+		r.Header.Set("Accept", "application/json")
+	}
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		log.Printf("botpanel: Gamaj API proxy: %v", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(`{"detail":"Gamaj API request failed"}`))
+	}
+	return proxy
 }
 
 func (p *panelServer) handlePage(w http.ResponseWriter, r *http.Request) {
@@ -58,25 +124,55 @@ func (p *panelServer) handle(w http.ResponseWriter, r *http.Request) {
 	switch path := strings.TrimPrefix(r.URL.Path, "/panel/"); {
 	case path == "api":
 		http.NotFound(w, r)
-	case strings.HasPrefix(path, "api/"):
+	case path == "api/admin":
+		p.handleLogin(w, r)
+	case strings.HasPrefix(path, proxyPrefix):
 		if !p.authorized(r) {
 			http.Error(w, `{"detail":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 		r.URL.Path = "/" + strings.TrimPrefix(path, "api/")
 		p.proxy.ServeHTTP(w, r)
+	case strings.HasPrefix(path, "api/"):
+		http.Error(w, `{"detail":"not found"}`, http.StatusNotFound)
 	default:
 		http.Redirect(w, r, "/panel", http.StatusMovedPermanently)
 	}
 }
 
-// authorized checks the panel session cookie set by the login call.
+// handleLogin validates the submitted admin ID server-side. The comparison
+// happens here, not in the page, and a successful attempt is the only way to
+// obtain a session cookie.
+func (p *panelServer) handleLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"detail":"method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+	candidate := strings.TrimSpace(r.Header.Get(adminHeader))
+	if candidate == "" || !constantTimeEquals(candidate, p.adminID) {
+		http.Error(w, `{"detail":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	// HttpOnly keeps the token away from scripts, and SameSite=Strict stops a
+	// cross-site page from riding along on the session.
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookie,
+		Value:    p.sessionToken(),
+		Path:     "/panel",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	})
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
+}
+
+// authorized checks the panel session cookie issued by handleLogin.
 func (p *panelServer) authorized(r *http.Request) bool {
-	cookie, err := r.Cookie("gamaj_bot_panel")
-	if err != nil || cookie.Value == "" || len(cookie.Value) != len(p.adminID) {
+	cookie, err := r.Cookie(sessionCookie)
+	if err != nil || cookie.Value == "" {
 		return false
 	}
-	return constantTimeEquals(cookie.Value, p.adminID)
+	return constantTimeEquals(cookie.Value, p.sessionToken())
 }
 
 func constantTimeEquals(a, b string) bool {

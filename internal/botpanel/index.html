@@ -208,27 +208,25 @@ footer { text-align: center; padding: 26px 0 12px; color: var(--text2); font-siz
     if (!/^\d+$/.test(id)) { document.getElementById("loginErr").textContent = "شناسه باید عددی باشد"; return; }
     btn.disabled = true;
     fetch("/panel/api/admin", {
+      method: "POST",
       credentials: "same-origin",
       headers: { "X-Panel-Admin-Id": id }
     })
       .then(function (res) {
         if (res.status === 401) throw new Error("شناسه واردشده با admin_id ربات مطابقت ندارد");
         if (!res.ok) throw new Error("اتصال به گمج پنل برقرار نشد");
-        document.cookie = "gamaj_bot_panel=" + encodeURIComponent(id) + "; path=/panel; SameSite=Strict";
+        // The server sets an HttpOnly session cookie; the page never writes it.
         showDashboard();
       })
       .catch(function (err) { document.getElementById("loginErr").textContent = err.message; })
       .finally(function () { btn.disabled = false; });
   });
 
-  // Auto-resume an existing session: verify the stored ID by hitting the API.
-  var stored = null;
-  try { stored = decodeURIComponent((document.cookie.match(/gamaj_bot_panel=([^;]+)/) || [])[1] || ""); } catch (e) {}
-  if (stored && /^\d+$/.test(stored)) {
-    fetch("/panel/api/bot/plans", { credentials: "same-origin" })
-      .then(function (res) { if (res.ok) showDashboard(); else showLogin(); })
-      .catch(function () { showLogin(); });
-  }
+  // Auto-resume an existing session. The session cookie is HttpOnly, so the
+  // page cannot read it — the API itself is the source of truth.
+  fetch("/panel/api/bot/plans", { credentials: "same-origin" })
+    .then(function (res) { if (res.ok) showDashboard(); else showLogin(); })
+    .catch(function () { showLogin(); });
 })();
 </script>
 </body>

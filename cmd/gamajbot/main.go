@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/TheGamaj/Bot/internal/botpanel"
 	"github.com/TheGamaj/Bot/internal/botsales"
 	"github.com/TheGamaj/Bot/internal/config"
 	"github.com/TheGamaj/Bot/internal/panel"
@@ -63,10 +65,23 @@ func main() {
 		log.Printf("gamajbot: warning: Gamaj API check failed: %v", err)
 	}
 
+	panelTarget, err := url.Parse(cfg.PanelURL)
+	if err != nil {
+		log.Fatalf("gamajbot: invalid panel_url: %v", err)
+	}
+
 	address := cfg.ListenHost + ":" + fmt.Sprint(cfg.ListenPort)
+	// The webhook receiver owns /, /healthz, /miniapp and /webhook; the Bot
+	// Panel owns /panel and proxies its data calls to the Gamaj API.
+	root := http.NewServeMux()
+	panelHandler := botpanel.Handler(cfg.AdminID, botpanel.NewAPIProxy(panelTarget, cfg.APIKey))
+	root.Handle("/panel", panelHandler)
+	root.Handle("/panel/", panelHandler)
+	root.Handle("/", web.Handler(cfg.WebhookSecret, sales, bot))
+
 	server := &http.Server{
 		Addr:              address,
-		Handler:           web.Handler(cfg.WebhookSecret, sales, bot),
+		Handler:           root,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
