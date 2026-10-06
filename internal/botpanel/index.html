@@ -51,6 +51,26 @@ header { display: flex; align-items: center; justify-content: space-between; pad
   border: none; cursor: pointer;
 }
 .btn:disabled { opacity: .5; cursor: wait; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.card-head h2 { margin-bottom: 0; }
+.btn-sm { width: auto; padding: 8px 14px; font-size: .82rem; border-radius: var(--radius-md); }
+.btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.form { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px; margin-bottom: 16px; background: var(--bg); }
+.form .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.form label { display: block; font-size: .78rem; font-weight: 700; color: var(--text2); margin-bottom: 10px; }
+.form input[type="text"], .form input[type="number"], .form textarea {
+  width: 100%; margin-top: 6px; padding: 9px 11px; font: inherit; font-weight: 400;
+  color: var(--text); background: var(--card); text-align: right;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+}
+.form .check { display: flex; align-items: center; gap: 8px; color: var(--text); font-weight: 600; }
+.form .check input { width: auto; margin: 0; }
+.form .row { display: flex; gap: 10px; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.notice { margin-bottom: 18px; padding: 11px 14px; border-radius: var(--radius-md); font-size: .84rem; font-weight: 600; }
+.notice.ok { background: var(--paid-bg); color: var(--paid-fg); }
+.notice.bad { background: var(--bad-bg); color: var(--bad-fg); }
+.retired td { opacity: .55; }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
 .stat { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px; text-align: center; }
 .stat .n { font-size: 1.5rem; font-weight: 800; }
@@ -73,7 +93,12 @@ footer { text-align: center; padding: 26px 0 12px; color: var(--text2); font-siz
 <div class="container">
   <header>
     <div class="brand">
-      <svg class="mark" viewBox="0 0 100 100"><circle cx="36" cy="28" r="7" fill="currentColor"/><circle cx="64" cy="28" r="7" fill="currentColor"/><circle cx="50" cy="41" r="18" fill="var(--bg)" stroke="currentColor" stroke-width="2.5"/><ellipse cx="43" cy="41" rx="4" ry="5.2" transform="rotate(18 43 41)" fill="currentColor"/><ellipse cx="57" cy="41" rx="4" ry="5.2" transform="rotate(-18 57 41)" fill="currentColor"/><ellipse cx="50" cy="47" rx="2" ry="1.3" fill="currentColor"/></svg>
+      <!-- The Gamaj symbol, drawn inline so currentColor follows the page theme.
+           Geometry is the brand system's: three equal 20x20 modules on a 28 unit
+           pitch, plus one 12x12 module bottom-right. Loaded through an <img> the
+           same file would render solid black, because currentColor only resolves
+           for SVG that is part of the document. -->
+      <svg class="mark" viewBox="0 0 64 64" fill="currentColor" role="img" aria-label="Gamaj"><path d="M8 8h20v20H8V8zm28 0h20v20H36V8zM8 36h20v20H8V36zm28 8h12v12H36V44z"/></svg>
       <span>Gamaj Bot Panel</span>
     </div>
     <button class="theme-btn" id="themeBtn" title="Theme">◑</button>
@@ -96,11 +121,38 @@ footer { text-align: center; padding: 26px 0 12px; color: var(--text2); font-siz
       <div class="stat"><div class="n" id="stPaid">—</div><div class="l">پرداخت‌شده</div></div>
     </div>
 
+    <div class="notice" id="actionMsg" style="display:none"></div>
+
     <div class="card">
-      <h2>پلن‌های فروش</h2>
+      <div class="card-head">
+        <h2>پلن‌های فروش</h2>
+        <button class="btn btn-sm" id="planNewBtn">پلن جدید</button>
+      </div>
+
+      <!-- The create/edit form. The same form serves both: an empty hidden id
+           creates, a filled one updates that plan and nothing else. -->
+      <form class="form" id="planForm" style="display:none">
+        <input type="hidden" id="planId">
+        <div class="grid">
+          <label>نام<input type="text" id="pfName"></label>
+          <label>قیمت (تومان)<input type="number" id="pfPrice" min="1" step="1"></label>
+          <label>مدت (روز)<input type="number" id="pfDays" min="1" step="1"></label>
+          <label>حجم (GB)<input type="number" id="pfGB" min="0" step="1"></label>
+          <label>محدودیت تعداد IP<input type="number" id="pfIP" min="0" step="1"></label>
+          <label>شناسه سرویس<input type="number" id="pfService" min="1" step="1"></label>
+        </div>
+        <label>توضیحات<textarea id="pfDesc" rows="2"></textarea></label>
+        <label class="check"><input type="checkbox" id="pfVisible"> روی فروش نمایش داده شود</label>
+        <div class="row">
+          <button class="btn btn-sm" type="submit" id="planSave">ذخیره</button>
+          <button class="btn btn-sm btn-ghost" type="button" id="planCancel">انصراف</button>
+        </div>
+        <div class="err" id="planErr"></div>
+      </form>
+
       <div style="overflow-x:auto">
         <table>
-          <thead><tr><th>نام</th><th>قیمت (تومان)</th><th>حجم</th><th>مدت (روز)</th></tr></thead>
+          <thead><tr><th>نام</th><th>قیمت (تومان)</th><th>حجم</th><th>مدت (روز)</th><th>وضعیت</th><th>عملیات</th></tr></thead>
           <tbody id="plansBody"></tbody>
         </table>
       </div>
@@ -110,7 +162,7 @@ footer { text-align: center; padding: 26px 0 12px; color: var(--text2); font-siz
       <h2>سفارش‌های اخیر</h2>
       <div style="overflow-x:auto">
         <table>
-          <thead><tr><th>سفارش</th><th>پلن</th><th>مبلغ</th><th>وضعیت</th></tr></thead>
+          <thead><tr><th>سفارش</th><th>پلن</th><th>مبلغ</th><th>وضعیت</th><th>عملیات</th></tr></thead>
           <tbody id="ordersBody"></tbody>
         </table>
       </div>
@@ -138,36 +190,91 @@ footer { text-align: center; padding: 26px 0 12px; color: var(--text2); font-siz
     try { localStorage.setItem(KEY + "-theme", dark ? "light" : "dark"); } catch (e) {}
   });
 
-  function api(path) {
-    return fetch("/panel/api" + path, { credentials: "same-origin" })
-      .then(function (res) {
-        if (res.status === 401) throw new Error("unauthorized");
-        if (!res.ok) throw new Error("api " + res.status);
-        return res.json();
+  // The panel is a management panel, not a report: every route below is a
+  // write. Reads use GET, a plan is created with POST /bot/plans, edited with
+  // PUT /bot/plans/{id} and taken off sale with DELETE /bot/plans/{id}, and an
+  // order is acted on with POST /bot/orders/{id}/{action}.
+  function api(path, options) {
+    options = options || {};
+    var init = { credentials: "same-origin", method: options.method || "GET", headers: {} };
+    if (options.body !== undefined) {
+      init.headers["Content-Type"] = "application/json";
+      init.body = JSON.stringify(options.body);
+    }
+    return fetch("/panel/api" + path, init).then(function (res) {
+      if (res.status === 401) throw new Error("unauthorized");
+      return res.text().then(function (raw) {
+        var data = {};
+        if (raw) { try { data = JSON.parse(raw); } catch (e) { data = {}; } }
+        // The panel reports errors as {"detail": "..."}; surfacing that text
+        // is the difference between "api 422" and "name must not be empty".
+        if (!res.ok) throw new Error(data.detail || ("api " + res.status));
+        return data;
       });
+    });
   }
 
   function fmt(n) { return Number(n || 0).toLocaleString("fa-IR"); }
 
+  var lastPlans = [];
+  var lastOrders = [];
+
+  function notice(message, ok) {
+    var box = document.getElementById("actionMsg");
+    box.textContent = message || "";
+    box.className = "notice " + (ok ? "ok" : "bad");
+    box.style.display = message ? "" : "none";
+  }
+
+  // The Gamaj API reports failures in English and says exactly what was
+  // refused. A Persian panel shows the reason as-is - it is the only place the
+  // operator can read why - but under a Persian lead-in, so the sentence reads
+  // as part of this page rather than as a stray log line.
+  function failure(what, detail) {
+    notice((what ? what + " — " : "") + detail, false);
+  }
+
   function render(data) {
     var plans = data.plans || [];
     var orders = data.orders || [];
+    lastPlans = plans;
+    lastOrders = orders;
     var paid = orders.filter(function (o) { return o.status === "paid" || o.status === "provisioned"; }).length;
+    var onSale = plans.filter(function (p) { return p.visible !== false; }).length;
 
-    document.getElementById("stPlans").textContent = fmt(plans.length);
+    document.getElementById("stPlans").textContent = fmt(onSale);
     document.getElementById("stOrders").textContent = fmt(orders.length);
     document.getElementById("stPaid").textContent = fmt(paid);
 
     document.getElementById("plansBody").innerHTML = plans.map(function (p) {
-      return "<tr><td>" + esc(p.name) + "</td><td>" + fmt(p.price) + "</td><td>" +
+      var on = p.visible !== false;
+      return '<tr class="' + (on ? "" : "retired") + '"><td>' + esc(p.name) + "</td><td>" + fmt(p.price) + "</td><td>" +
         (p.data_limit ? fmt(Math.round(p.data_limit / 1073741824)) + " GB" : "نامحدود") + "</td><td>" +
-        fmt(p.duration_days) + "</td></tr>";
-    }).join("") || '<tr><td colspan="4" class="muted">پلنی ثبت نشده است</td></tr>';
+        fmt(p.duration_days) + "</td><td>" +
+        (on ? '<span class="badge paid">فعال</span>' : '<span class="badge expired">پنهان</span>') +
+        '</td><td><div class="actions">' +
+        '<button class="btn btn-sm btn-ghost" data-edit="' + esc(p.id) + '">ویرایش</button>' +
+        (on
+          ? '<button class="btn btn-sm btn-ghost" data-retire="' + esc(p.id) + '">پنهان کردن</button>'
+          : '<button class="btn btn-sm btn-ghost" data-restore="' + esc(p.id) + '">فعال کردن</button>') +
+        "</div></td></tr>";
+    }).join("") || '<tr><td colspan="6" class="muted">پلنی ثبت نشده است</td></tr>';
 
     document.getElementById("ordersBody").innerHTML = orders.map(function (o) {
-      return "<tr><td class='muted'>" + esc(o.id) + "</td><td>" + esc(o.plan_name || "—") + "</td><td>" +
-        fmt(o.amount) + "</td><td><span class='badge " + esc(o.status) + "'>" + esc(o.status) + "</span></td></tr>";
-    }).join("") || '<tr><td colspan="4" class="muted">سفارشی ثبت نشده است</td></tr>';
+      // Only a pending order can still be acted on; anything else has already
+      // settled and the API would refuse the action anyway.
+      var pending = o.status === "pending";
+      var id = esc(o.id);
+      return "<tr><td class='muted'>" + id + "</td><td>" + esc(o.plan_name || "—") + "</td><td>" +
+        fmt(o.amount) + "</td><td><span class='badge " + esc(o.status) + "'>" + esc(o.status) + "</span></td>" +
+        '<td><div class="actions">' +
+        (pending
+          ? '<button class="btn btn-sm btn-ghost" data-order="' + id + '" data-act="pay-wallet">کیف پول</button>' +
+            '<button class="btn btn-sm btn-ghost" data-order="' + id + '" data-act="payment-link">لینک پرداخت</button>' +
+            '<button class="btn btn-sm btn-ghost" data-order="' + id + '" data-act="verify">تأیید پرداخت</button>'
+          : '<span class="muted">—</span>') +
+        "</div></td></tr>";
+    }).join("") || '<tr><td colspan="5" class="muted">سفارشی ثبت نشده است</td></tr>';
 
     document.getElementById("connInfo").textContent =
       "اتصال با گمج پنل برقرار است · Gamaj Bot Panel is.0.0.1 · تمام داده‌ها از Gamaj API خوانده می‌شود";
@@ -186,7 +293,10 @@ footer { text-align: center; padding: 26px 0 12px; color: var(--text2); font-siz
   }
 
   function refresh() {
-    Promise.all([api("/bot/plans"), api("/bot/orders?limit=50")])
+    // include_hidden asks the panel for retired plans as well. Without it the
+    // API returns the buyer-facing list, which drops a hidden plan, and the
+    // panel could never bring one back on sale.
+    Promise.all([api("/bot/plans?include_hidden=1"), api("/bot/orders?limit=50")])
       .then(function (results) {
         render({ plans: results[0], orders: results[1] });
       })
@@ -195,6 +305,147 @@ footer { text-align: center; padding: 26px 0 12px; color: var(--text2); font-siz
         document.getElementById("connInfo").textContent = "خطا در دریافت داده‌ها از گمج پنل — اتصال را بررسی کنید";
       });
   }
+
+  /* ------------------------------------------------------------- plans */
+
+  function planById(id) {
+    for (var i = 0; i < lastPlans.length; i++) {
+      if (String(lastPlans[i].id) === String(id)) return lastPlans[i];
+    }
+    return null;
+  }
+
+  function orderById(id) {
+    for (var i = 0; i < lastOrders.length; i++) {
+      if (lastOrders[i].id === id) return lastOrders[i];
+    }
+    return null;
+  }
+
+  function openPlanForm(plan) {
+    document.getElementById("planForm").style.display = "";
+    document.getElementById("planId").value = plan ? plan.id : "";
+    document.getElementById("pfName").value = plan ? plan.name || "" : "";
+    document.getElementById("pfDesc").value = plan ? plan.description || "" : "";
+    document.getElementById("pfPrice").value = plan ? plan.price : "";
+    document.getElementById("pfDays").value = plan ? plan.duration_days : 30;
+    document.getElementById("pfGB").value = plan && plan.data_limit ? Math.round(plan.data_limit / 1073741824) : 0;
+    document.getElementById("pfIP").value = plan && plan.ip_limit ? plan.ip_limit : 0;
+    document.getElementById("pfService").value = plan ? plan.service_id || "" : "";
+    document.getElementById("pfVisible").checked = plan ? plan.visible !== false : true;
+    document.getElementById("planErr").textContent = "";
+    document.getElementById("planSave").textContent = plan ? "ذخیره تغییرات" : "ساخت پلن";
+    document.getElementById("pfName").focus();
+  }
+
+  function closePlanForm() {
+    document.getElementById("planForm").style.display = "none";
+    document.getElementById("planForm").reset();
+    document.getElementById("planId").value = "";
+  }
+
+  document.getElementById("planNewBtn").addEventListener("click", function () { openPlanForm(null); });
+  document.getElementById("planCancel").addEventListener("click", closePlanForm);
+
+  document.getElementById("planForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var id = document.getElementById("planId").value;
+    var err = document.getElementById("planErr");
+    var payload = {
+      name: document.getElementById("pfName").value.trim(),
+      description: document.getElementById("pfDesc").value.trim(),
+      price: Number(document.getElementById("pfPrice").value),
+      duration_days: Number(document.getElementById("pfDays").value),
+      // The form speaks GB because that is what a human plans in; the API
+      // speaks bytes because that is what the user core stores.
+      data_limit: Math.round(Number(document.getElementById("pfGB").value || 0) * 1073741824),
+      ip_limit: Number(document.getElementById("pfIP").value || 0),
+      service_id: Number(document.getElementById("pfService").value),
+      visible: document.getElementById("pfVisible").checked
+    };
+    err.textContent = "";
+    if (!payload.name) { err.textContent = "نام پلن الزامی است"; return; }
+    if (!(payload.price > 0)) { err.textContent = "قیمت باید بزرگ‌تر از صفر باشد"; return; }
+    if (!(payload.service_id > 0)) { err.textContent = "شناسه سرویس الزامی است"; return; }
+    var save = document.getElementById("planSave");
+    save.disabled = true;
+    var request = id
+      ? api("/bot/plans/" + encodeURIComponent(id), { method: "PUT", body: payload })
+      : api("/bot/plans", { method: "POST", body: payload });
+    request
+      .then(function () {
+        closePlanForm();
+        notice(id ? "پلن به‌روزرسانی شد" : "پلن ساخته شد", true);
+        refresh();
+      })
+      .catch(function (e) {
+        if (e.message === "unauthorized") { showLogin(); return; }
+        err.textContent = e.message;
+      })
+      .finally(function () { save.disabled = false; });
+  });
+
+  document.getElementById("plansBody").addEventListener("click", function (ev) {
+    var el = ev.target.closest("button");
+    if (!el) return;
+    if (el.hasAttribute("data-edit")) {
+      openPlanForm(planById(el.getAttribute("data-edit")));
+      return;
+    }
+    var restoring = el.hasAttribute("data-restore");
+    var id = restoring ? el.getAttribute("data-restore") : el.getAttribute("data-retire");
+    if (!id) return;
+    if (!restoring && !window.confirm("این پلن از فروش خارج شود؟ سفارش‌های گذشتهٔ آن حفظ می‌شوند.")) return;
+    var request = restoring
+      ? api("/bot/plans/" + encodeURIComponent(id), { method: "PUT", body: { visible: true } })
+      : api("/bot/plans/" + encodeURIComponent(id), { method: "DELETE" });
+    request
+      .then(function () {
+        notice(restoring ? "پلن دوباره فعال شد" : "پلن از فروش خارج شد", true);
+        refresh();
+      })
+      .catch(function (e) {
+        if (e.message === "unauthorized") { showLogin(); return; }
+        failure("خطا در " + (restoring ? "فعال‌سازی" : "حذف") + " پلن", e.message);
+      });
+  });
+
+  /* ----------------------------------------------------------- orders */
+
+  function orderAction(order, action, body) {
+    notice("در حال انجام…", false);
+    api("/bot/orders/" + encodeURIComponent(order.id) + "/" + action, { method: "POST", body: body })
+      .then(function (data) {
+        if (action === "payment-link" && data && data.payment_url) {
+          window.open(data.payment_url, "_blank", "noopener");
+          notice("لینک پرداخت ساخته شد", true);
+        } else if (action === "pay-wallet") {
+          notice("پرداخت از کیف پول ثبت شد · وضعیت: " + (data.status || ""), true);
+        } else if (action === "verify") {
+          notice("پرداخت تأیید شد · وضعیت: " + (data.status || ""), true);
+        }
+        refresh();
+      })
+      .catch(function (e) {
+        if (e.message === "unauthorized") { showLogin(); return; }
+        failure("عملیات روی سفارش انجام نشد", e.message);
+      });
+  }
+
+  document.getElementById("ordersBody").addEventListener("click", function (ev) {
+    var el = ev.target.closest("button");
+    if (!el) return;
+    var order = orderById(el.getAttribute("data-order"));
+    if (!order) return;
+    var action = el.getAttribute("data-act");
+    if (action === "verify") {
+      var payID = window.prompt("شناسهٔ پرداخت (pay_id) را وارد کنید:");
+      if (!payID || !payID.trim()) return;
+      orderAction(order, action, { pay_id: payID.trim() });
+      return;
+    }
+    orderAction(order, action, {});
+  });
 
   function showLogin() {
     document.getElementById("loginCard").style.display = "";

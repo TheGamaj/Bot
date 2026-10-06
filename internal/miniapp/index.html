@@ -5,13 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
 <title>Gamaj Bot | گمج</title>
-<link rel="icon" type="image/svg+xml" href="/statics/gamaj-logo.svg">
+<!-- No favicon link: /statics is served by the Panel, not by the bot, so this
+     pointed at a 404 on the Mini App's own origin. -->
 <style>
 :root{--bg:#000;--fg:#fff;--muted:rgba(255,255,255,.55);--line:rgba(255,255,255,.14);--card:#0a0a0a;--radius:16px}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--fg);font-family:Vazirmatn,-apple-system,"Segoe UI",Tahoma,sans-serif;min-height:100vh;padding:16px;padding-bottom:32px}
 .logo{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px}
-.logo img{height:44px;width:auto}
+.logo svg{height:44px;width:auto}
 .logo h1{font-size:1.15rem;font-weight:700;letter-spacing:.5px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:12px}
 .card h2{font-size:1rem;margin-bottom:6px}
@@ -30,7 +31,11 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:20px}
 </head>
 <body>
 <div class="logo">
-<img src="/statics/gamaj-logo.svg" alt="Gamaj" onerror="this.style.display='none'">
+<!-- The Gamaj lockup, drawn inline. The previous <img src="/statics/gamaj-logo.svg">
+     pointed at a path the bot does not serve, and the onerror handler hid the
+     broken image, so this header never showed a logo at all. Inline also means
+     currentColor follows the theme instead of resolving to black. -->
+<svg viewBox="0 0 220 64" height="44" fill="currentColor" role="img" aria-label="Gamaj"><path d="M0 8h20v20H0V8zm28 0h20v20H28V8zM0 36h20v20H0V36zm28 8h12v12H28V44z"/><text x="76" y="43" font-family="'Inter','SF Pro Display',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="28" font-weight="600" letter-spacing="3.5" fill="currentColor">GAMAJ</text></svg>
 <h1>Gamaj | گمج</h1>
 </div>
 <div id="app">
