@@ -39,8 +39,11 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Environment naming guard
-        run: go test ./internal/platform/envguard/
+      # Includes the environment naming guard. Running the whole suite matters:
+      # the bot panel was once written, embedded and guarded while nothing
+      # imported it, and no step here would have noticed.
+      - name: Test
+        run: go test ./...
 
       - name: Validate installer shell scripts
         shell: bash
