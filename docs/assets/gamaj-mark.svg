@@ -1,6 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Gamaj">
   <!-- GAMAJ symbol: four modules on a modular grid. Three equal squares sit in
        the top-left, top-right and bottom-left cells; a smaller square occupies
-       the bottom-right cell for deliberate asymmetry. -->
-  <path fill="currentColor" d="M8 8h20v20H8V8zm28 0h20v20H36V8zM8 36h20v20H8V36zm28 8h12v12H36V44z"/>
+       the bottom-right cell for deliberate asymmetry.
+
+       The fill adapts to the reader's colour scheme instead of using
+       currentColor. An SVG loaded through <img> or used as a favicon is rendered
+       outside the document and inherits nothing, so currentColor fell back to its
+       initial value, black, and the mark vanished on every dark surface: GitHub
+       READMEs, dark tab strips, dark panels. A prefers-color-scheme block inside
+       the file is still evaluated, against the reader's scheme. -->
+  <style>
+    path { fill: #FFFFFF; }
+    @media (prefers-color-scheme: light) { path { fill: #000000; } }
+  </style>
+  <path d="M8 8h20v20H8V8zm28 0h20v20H36V8zM8 36h20v20H8V36zm28 8h12v12H36V44z"/>
 </svg>

@@ -1,7 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 64" role="img" aria-label="Gamaj">
   <!-- GAMAJ primary lockup: the symbol followed by the wordmark, set in the
-       brand sans at 600 with the identity's increased letter spacing. The mark
-       uses currentColor so one file serves light and dark surfaces. -->
-  <path fill="currentColor" d="M0 8h20v20H0V8zm28 0h20v20H28V8zM0 36h20v20H0V36zm28 8h12v12H28V44z"/>
-  <text x="76" y="43" font-family="'Inter','SF Pro Display',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="28" font-weight="600" letter-spacing="3.5" fill="currentColor">GAMAJ</text>
+       brand sans at 600 with the identity's increased letter spacing.
+
+       The fill adapts to the reader's colour scheme rather than using
+       currentColor, which resolves to black outside a document and so left this
+       lockup invisible on dark surfaces. See gamaj-mark.svg for the full note. -->
+  <style>
+    path, text { fill: #FFFFFF; }
+    @media (prefers-color-scheme: light) { path, text { fill: #000000; } }
+  </style>
+  <path d="M0 8h20v20H0V8zm28 0h20v20H28V8zM0 36h20v20H0V36zm28 8h12v12H28V44z"/>
+  <text x="76" y="43" font-family="'Inter','SF Pro Display',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="28" font-weight="600" letter-spacing="3.5">GAMAJ</text>
 </svg>

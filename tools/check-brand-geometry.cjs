@@ -28,14 +28,21 @@
 //
 //   node tools/check-brand-geometry.cjs
 //
+// The third rule polices logo geometry itself. The colour rule above could not
+// catch the worst defect this workspace ever shipped: a hand-drawn mascot
+// standing in for the symbol, on a surface that was otherwise perfectly
+// on-palette. Nothing about it was off-colour, so the guard stayed green.
+//
+//   node tools/check-brand-geometry.cjs
+//
 // The guard runs against a workspace root, which defaults to the directory
-// two levels above this file. Both the root and the set of palette-governed
-// directories can be overridden so the same file can be vendored into an
-// individual repository and run in that repository's CI, where the other
-// repositories are not present:
+// two levels above this file. The root and each set of governed directories can
+// be overridden so the same file can be vendored into an individual repository
+// and run in that repository's CI, where the other repositories are absent:
 //
 //   GAMAJ_BRAND_ROOT=/path/to/repo \
 //   GAMAJ_PALETTE_DIRS=dashboard/src \
+//   GAMAJ_LOGO_DIRS=templates/subscription \
 //   node tools/check-brand-geometry.cjs
 
 const fs = require("node:fs");
@@ -118,6 +125,8 @@ const PALETTE_EXT = /\.(tsx|ts)$/;
  *   CoreSettingsPage    NordVPN / TorProject marks
  *   themeColor.ts       a <meta> content attribute, which takes no var()
  *   imperial-iran-flag  a national flag, which is not ours to recolour
+ *   gamaj-mark.svg      a standalone SVG document: no stylesheet, so no var()
+ *   gamaj-logo.svg      idem, for the lockup
  *   assets/operators/   ISP logos, each in its own brand ink
  *
  * Paths are relative to that surface's own root. A `:root { ... }` theme block
@@ -132,6 +141,13 @@ const LITERAL_EXEMPT = new Set([
 	"pages/CoreSettingsPage.tsx",
 	"utils/themeColor.ts",
 	"assets/imperial-iran-flag.svg",
+	// The mark and the lockup, as shipped assets. They are read as standalone
+	// SVG documents - by a README, a tab strip, a pinned tab - which have no
+	// stylesheet and so cannot resolve a custom property. The two values are
+	// the palette's own white and black, chosen by colour scheme, not colours
+	// invented for the logo.
+	"assets/gamaj-mark.svg",
+	"assets/gamaj-logo.svg",
 ]);
 
 /**
@@ -388,6 +404,226 @@ if (!fs.existsSync(PALETTE_DIR)) continue;
 }
 }
 
+/* ------------------------------------------------------------ logo geometry */
+
+/**
+ * The one mark, written out.
+ *
+ * Three equal 20x20 modules on a 28 unit pitch inside a 64 grid - top-left,
+ * top-right, bottom-left - plus one 12x12 module in the bottom-right cell,
+ * which is what gives the symbol its deliberate asymmetry. The lockup is the
+ * same mark translated to x=0 so the wordmark can sit beside it in a 220 grid.
+ *
+ * `Gamaj.html` at the workspace root is the design source of truth and carries
+ * this path. These two strings are that path, and nothing else may serve as a
+ * mark.
+ */
+const MARK_PATH =
+	"M8 8h20v20H8V8zm28 0h20v20H36V8zM8 36h20v20H8V36zm28 8h12v12H36V44z";
+const LOCKUP_PATH =
+	"M0 8h20v20H0V8zm28 0h20v20H28V8zM0 36h20v20H0V36zm28 8h12v12H28V44z";
+const CANONICAL_PATHS = new Set([MARK_PATH, LOCKUP_PATH]);
+const CANONICAL_VIEWBOXES = new Set(["0 0 64 64", "0 0 220 64"]);
+
+/** The Persian wordmark, written as escapes so this file stays ASCII. */
+const PERSIAN_NAME = "\u06af\u0645\u062c";
+
+/**
+ * Surfaces rather than assets: the places a person actually meets a Gamaj
+ * mark. An entry may be a directory or a single file. Paths are relative to
+ * the workspace root.
+ */
+const LOGO_DIRS = (
+	process.env.GAMAJ_LOGO_DIRS ??
+	"Panel/dashboard/src,Panel/templates/subscription,Bot/internal,Web/index.html,Web/assets/js"
+)
+	.split(",")
+	.map((entry) => entry.trim())
+	.filter(Boolean)
+	.map((entry) => path.join(ROOT, entry));
+
+/** Extensions that can carry an inline mark. */
+const LOGO_SURFACE_EXT = /\.(html|tsx|jsx|ts|js|mjs|cjs|vue|svelte)$/;
+
+/**
+ * What makes an inline `<svg>` the brand rather than an interface icon. The
+ * icons sharing these surfaces - a chevron, a shield, a download arrow - carry
+ * none of this, so the rule fires on the mark and leaves them alone.
+ */
+const BRAND_LABEL = new RegExp(
+	`aria-label\\s*=\\s*["']\\s*(?:Gamaj|${PERSIAN_NAME})`,
+	"i",
+);
+const BRAND_CLASS = /class\s*=\s*["'][^"']*\b(?:docs-mark|brand-mark|logo-mark|mark)\b/;
+
+/**
+ * Shapes the mark cannot be made of. Every module is a filled rectangle, so a
+ * circle, an ellipse or a polygon in a mark means something was drawn by hand:
+ * that is exactly how the invented mascot reached a shipped panel.
+ */
+const NOT_A_MODULE = /<(circle|ellipse|polygon|polyline)\b/;
+
+const logoOffenders = [];
+let logoSurfaces = 0;
+let logoAssets = 0;
+
+/** Every inline `<svg>...</svg>` in a file, with its source offset. */
+function inlineSvgs(text) {
+	const out = [];
+	const open = /<svg\b/g;
+	let m;
+	while ((m = open.exec(text)) !== null) {
+		const end = text.indexOf("</svg>", m.index);
+		const stop = end === -1 ? text.length : end + 6;
+		out.push({ start: m.index, body: text.slice(m.index, stop) });
+		open.lastIndex = stop;
+	}
+	return out;
+}
+
+function checkLogoSurface(p) {
+	if (!LOGO_SURFACE_EXT.test(p)) return;
+	// Markup inside a comment is not rendered, and these files carry comments
+	// that quote the old broken logo exactly so the next reader knows why it
+	// was wrong. Scanning those would flag the explanation as the defect.
+	const text = fs
+		.readFileSync(p, "utf8")
+		.replace(/<!--[\s\S]*?-->/g, (block) => block.replace(/[^\n]/g, " "));
+	const rel = path.relative(ROOT, p).replace(/\\/g, "/");
+	logoSurfaces++;
+
+	for (const { start, body } of inlineSvgs(text)) {
+		if (!BRAND_LABEL.test(body) && !BRAND_CLASS.test(body)) continue;
+		const line = text.slice(0, start).split("\n").length;
+
+		// A mark with no viewBox scales to whatever box it is dropped into,
+		// which is how a 220x64 lockup ends up squashed into a square.
+		const viewBox = /\bviewBox\s*=\s*["']([^"']+)["']/.exec(body);
+		if (!viewBox) {
+			logoOffenders.push(`${rel}:${line} -> brand <svg> has no viewBox`);
+		} else if (!CANONICAL_VIEWBOXES.has(viewBox[1].trim())) {
+			logoOffenders.push(
+				`${rel}:${line} -> brand <svg> viewBox "${viewBox[1]}" is not a Gamaj grid`,
+			);
+		}
+
+		const curve = NOT_A_MODULE.exec(body);
+		if (curve) {
+			logoOffenders.push(
+				`${rel}:${line} -> brand <svg> contains <${curve[1]}>; the mark is four square modules`,
+			);
+		}
+
+		// Every literal path must be the mark. A path reached through a
+		// constant is allowed, as long as the file actually holds the
+		// canonical geometry somewhere.
+		const paths = [...body.matchAll(/\bd\s*=\s*["']([^"']+)["']/g)].map(
+			(match) => match[1],
+		);
+		for (const d of paths) {
+			if (!CANONICAL_PATHS.has(d)) {
+				logoOffenders.push(`${rel}:${line} -> brand path is not the Gamaj symbol`);
+			}
+		}
+		if (paths.length === 0 && !text.includes(MARK_PATH) && !text.includes(LOCKUP_PATH)) {
+			logoOffenders.push(
+				`${rel}:${line} -> brand <svg> has no path and the file holds no canonical geometry`,
+			);
+		}
+	}
+
+	// The shipped SVGs carry their own prefers-color-scheme fill, because an
+	// image rendered outside the document inherits nothing. That makes them
+	// right for a README or a tab strip, which follow the reader's operating
+	// system, and wrong inside an app whose theme the reader chose in the app.
+	// Inside a surface the mark is drawn inline instead.
+	const imgTag = /<img\b[^>]*\bsrc\s*=\s*["']([^"']*gamaj[^"']*\.svg)["']/gi;
+	let ref;
+	while ((ref = imgTag.exec(text)) !== null) {
+		const line = text.slice(0, ref.index).split("\n").length;
+		logoOffenders.push(
+			`${rel}:${line} -> <img src="${ref[1]}"> follows the OS colour scheme, not the app's; draw the mark inline`,
+		);
+	}
+}
+
+for (const LOGO_DIR of LOGO_DIRS) {
+	if (!fs.existsSync(LOGO_DIR)) continue;
+	if (fs.statSync(LOGO_DIR).isFile()) {
+		checkLogoSurface(LOGO_DIR);
+		continue;
+	}
+	const walkLogo = (dir) => {
+		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+			if (entry.name === "node_modules" || entry.name === ".git") continue;
+			const p = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				walkLogo(p);
+				continue;
+			}
+			if (entry.isFile()) checkLogoSurface(p);
+		}
+	};
+	walkLogo(LOGO_DIR);
+}
+
+/**
+ * The shipped asset files. They are the one place a mark may be reached
+ * through `<img>`, and they are read by anything that cannot inline: GitHub
+ * READMEs, tab strips, pinned tabs. Each must hold the canonical geometry and
+ * the colour-scheme block that makes it legible on both dark and light.
+ */
+const BRAND_ASSETS = new Map([
+	["gamaj-mark.svg", MARK_PATH],
+	["gamaj-logo.svg", LOCKUP_PATH],
+]);
+
+(function walkAssets(dir) {
+	for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+		if (SKIP_DIRS.has(entry.name)) continue;
+		const p = path.join(dir, entry.name);
+		if (entry.isDirectory()) {
+			walkAssets(p);
+			continue;
+		}
+		if (!entry.isFile()) continue;
+		const want = BRAND_ASSETS.get(entry.name);
+		if (!want) continue;
+		const rel = path.relative(ROOT, p).replace(/\\/g, "/");
+		const text = fs.readFileSync(p, "utf8");
+		logoAssets++;
+		if (!text.includes(`d="${want}"`)) {
+			logoOffenders.push(`${rel} -> path data is not the canonical Gamaj symbol`);
+		}
+		const viewBox = /\bviewBox\s*=\s*["']([^"']+)["']/.exec(text);
+		if (!viewBox || !CANONICAL_VIEWBOXES.has(viewBox[1].trim())) {
+			logoOffenders.push(`${rel} -> viewBox is not a Gamaj grid`);
+		}
+		// Without this block the mark renders black on every dark surface,
+		// because currentColor outside a document falls back to its initial
+		// value. That is not a style preference, it is an invisible logo.
+		if (!/prefers-color-scheme\s*:\s*light/.test(text)) {
+			logoOffenders.push(
+				`${rel} -> no prefers-color-scheme block, so this file renders black on dark backgrounds`,
+			);
+		}
+	}
+})(ROOT);
+
+if (logoOffenders.length > 0) {
+	console.error("check-brand-geometry: FAILED (logo geometry)");
+	for (const o of logoOffenders) console.error(`  ${o}`);
+	console.error(
+		"There is one mark: three equal 20x20 modules on a 28 unit pitch,\n" +
+			"plus one 12x12 module in the bottom-right cell. Inside an app,\n" +
+			"draw it inline so it follows the theme the reader chose there.\n" +
+			"Outside the document - a README or a tab strip - ship the\n" +
+			"gamaj-mark.svg / gamaj-logo.svg asset, which carries its own\n" +
+			"prefers-color-scheme fill.",
+	);
+	process.exit(1);
+}
+
 if (paletteOffenders.length > 0) {
 	console.error("check-brand-geometry: FAILED (off-palette colour tokens)");
 	for (const o of paletteOffenders) console.error(`  ${o}`);
@@ -419,5 +655,6 @@ if (offenders.length > 0) {
 console.log(
 	`check-brand-geometry: OK (${scanned} text files scanned, ` +
 		`${skippedBinary} binary/large skipped, no retired branding; ` +
-		`${paletteScanned} Gamaj surface sources on the palette)`,
+		`${paletteScanned} Gamaj surface sources on the palette; ` +
+		`${logoSurfaces} surfaces and ${logoAssets} brand assets on the canonical mark)`,
 );

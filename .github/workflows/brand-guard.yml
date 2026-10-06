@@ -6,8 +6,14 @@ name: Brand Guard
 # without anything noticing. It used to. This job runs the palette guard over
 # internal/botpanel so that cannot happen again.
 #
-# The guard is a vendored copy of Web/tools/check-brand-geometry.cjs. GAMAJ_PALETTE_DIRS
-# limits it to the surface this repository owns.
+# The guard is a vendored copy of Web/tools/check-brand-geometry.cjs.
+# GAMAJ_PALETTE_DIRS and GAMAJ_LOGO_DIRS limit it to the surfaces this
+# repository owns.
+#
+# The logo rule is not decorative. This panel's header used to carry an
+# invented mascot - circles and ellipses, drawn in the correct palette. The
+# palette check could not see it, because nothing about it was off-colour. It
+# is now compared against the canonical Gamaj symbol.
 
 on:
   push:
@@ -31,6 +37,7 @@ jobs:
     env:
       GAMAJ_BRAND_ROOT: .
       GAMAJ_PALETTE_DIRS: internal/botpanel
+      GAMAJ_LOGO_DIRS: internal
 
     steps:
       - name: Checkout
@@ -41,5 +48,5 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Check palette and retired branding
+      - name: Check palette, retired branding and logo geometry
         run: node tools/check-brand-geometry.cjs
