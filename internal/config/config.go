@@ -19,10 +19,15 @@ const Version = "is.0.0.1"
 // Config is the bot runtime configuration. It contains database credentials
 // by design: Gamaj Bot never talks to a database, only to the Gamaj API.
 type Config struct {
-	PanelURL       string `json:"panel_url"`
-	APIKey         string `json:"api_key"`
-	BotToken       string `json:"bot_token"`
-	AdminID        string `json:"admin_id"`
+	PanelURL string `json:"panel_url"`
+	APIKey   string `json:"api_key"`
+	BotToken string `json:"bot_token"`
+	AdminID  string `json:"admin_id"`
+	// PanelPassword guards the web management panel. It is optional: when it
+	// is empty the panel mints a random one-time token at startup and prints
+	// it once. It is deliberately not derived from AdminID, which is not a
+	// secret - it appears in logs and in webhook payloads.
+	PanelPassword  string `json:"panel_password,omitempty"`
 	WebhookSecret  string `json:"webhook_secret"`
 	ListenHost     string `json:"listen_host"`
 	ListenPort     int    `json:"listen_port"`

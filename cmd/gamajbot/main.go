@@ -74,7 +74,7 @@ func main() {
 	// The webhook receiver owns /, /healthz, /miniapp and /webhook; the Bot
 	// Panel owns /panel and proxies its data calls to the Gamaj API.
 	root := http.NewServeMux()
-	panelHandler := botpanel.Handler(cfg.AdminID, botpanel.NewAPIProxy(panelTarget, cfg.APIKey))
+	panelHandler := botpanel.Handler(cfg.AdminID, cfg.PanelPassword, botpanel.NewAPIProxy(panelTarget, cfg.APIKey))
 	root.Handle("/panel", panelHandler)
 	root.Handle("/panel/", panelHandler)
 	root.Handle("/", web.Handler(cfg.WebhookSecret, sales, bot))

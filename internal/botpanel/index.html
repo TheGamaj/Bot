@@ -107,8 +107,8 @@ footer { text-align: center; padding: 26px 0 12px; color: var(--text2); font-siz
   <!-- Login -->
   <div class="card login-card" id="loginCard">
     <h2>ورود مدیر ربات</h2>
-    <p class="muted">شناسه عددی تلگرام مدیر (admin_id در کانفیگ ربات) را وارد کنید.</p>
-    <input id="adminId" inputmode="numeric" placeholder="admin_id">
+    <p class="muted">رمز پنل مدیریت را وارد کنید. اگر در کانفیگ ربات <code>panel_password</code> تنظیم نشده باشد، توکن یک‌بارمصرف در لاگ ربات چاپ می‌شود.</p>
+    <input id="adminId" type="password" autocomplete="current-password" placeholder="رمز پنل">
     <button class="btn" id="loginBtn">ورود</button>
     <div class="err" id="loginErr"></div>
   </div>
@@ -454,9 +454,9 @@ footer { text-align: center; padding: 26px 0 12px; color: var(--text2); font-siz
 
   document.getElementById("loginBtn").addEventListener("click", function () {
     var btn = this;
-    var id = document.getElementById("adminId").value.trim();
+    var id = document.getElementById("adminId").value;
     document.getElementById("loginErr").textContent = "";
-    if (!/^\d+$/.test(id)) { document.getElementById("loginErr").textContent = "شناسه باید عددی باشد"; return; }
+    if (!id) { document.getElementById("loginErr").textContent = "رمز را وارد کنید"; return; }
     btn.disabled = true;
     fetch("/panel/api/admin", {
       method: "POST",
@@ -464,7 +464,8 @@ footer { text-align: center; padding: 26px 0 12px; color: var(--text2); font-siz
       headers: { "X-Panel-Admin-Id": id }
     })
       .then(function (res) {
-        if (res.status === 401) throw new Error("شناسه واردشده با admin_id ربات مطابقت ندارد");
+        if (res.status === 429) throw new Error("تلاش‌های ناموفق زیاد بود؛ کمی بعد دوباره تلاش کنید");
+        if (res.status === 401) throw new Error("رمز واردشده درست نیست");
         if (!res.ok) throw new Error("اتصال به گمج پنل برقرار نشد");
         // The server sets an HttpOnly session cookie; the page never writes it.
         showDashboard();
