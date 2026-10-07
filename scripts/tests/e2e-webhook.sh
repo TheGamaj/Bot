@@ -353,8 +353,14 @@ ok "mock panel is live on port $E2E_PANEL_PORT"
 # ------------------------------------------------------------------ node
 step "Start the Node with a stub Xray core on port $E2E_NODE_PORT"
 
-node_data="$E2E_PREFIX/node-data"
-node_app="$E2E_PREFIX/opt/gamaj-node-e2e"
+# The installer honours these two so a test can work entirely under a
+# sandbox prefix. Without them it installs into /opt and keeps its data in
+# /var/lib, which both misses the stub core below and needs the real one
+# downloaded over the network.
+export GAMAJ_INSTALL_DIR="$E2E_PREFIX/opt"
+export GAMAJ_DATA_ROOT="$E2E_PREFIX/var/lib"
+node_app="$GAMAJ_INSTALL_DIR/$E2E_NODE_NAME"
+node_data="$GAMAJ_DATA_ROOT/$E2E_NODE_NAME"
 mkdir -p "$node_data/xray-core" "$node_app"
 
 cat > "$node_data/xray-core/xray" <<'STUB'
