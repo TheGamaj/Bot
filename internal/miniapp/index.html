@@ -26,7 +26,7 @@ body{background:var(--bg);color:var(--fg);font-family:Vazirmatn,-apple-system,"S
 .muted{color:var(--muted)}
 .links a{display:block;color:var(--fg);word-break:break-all;font-size:.8rem;padding:6px 0;border-bottom:1px dashed var(--line)}
 .links a:last-child{border-bottom:none}
-footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:20px}
+footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:20px;line-height:1.7}
 </style>
 </head>
 <body>
@@ -41,7 +41,7 @@ footer{text-align:center;color:var(--muted);font-size:.75rem;margin-top:20px}
 <div id="app">
 <div class="card"><h2>در حال بارگذاری…</h2><p id="err" class="muted"></p></div>
 </div>
-<footer>Gamaj Bot Mini App is.0.0.1</footer>
+<footer><div class="muted">Gamaj Bot Mini App is.0.0.1</div><div>Coded by AsliCode</div></footer>
 <script>
 (function(){
   var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
