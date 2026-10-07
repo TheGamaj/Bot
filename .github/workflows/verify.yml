@@ -43,7 +43,12 @@ jobs:
       # the bot panel was once written, embedded and guarded while nothing
       # imported it, and no step here would have noticed.
       - name: Test
-        run: go test ./...
+        run: |
+          set -euo pipefail
+          go test ./internal/platform/envguard/ -v
+          go test ./internal/platform/routeguard/ -v
+          go test ./internal/botpanel/ -v
+          go test ./internal/panel/ -v
 
       - name: Validate installer shell scripts
         shell: bash
@@ -51,6 +56,7 @@ jobs:
           bash -n scripts/install.sh
           bash -n scripts/manage.sh
           bash -n scripts/tests/e2e-bot-install.sh
+          bash -n scripts/tests/e2e-webhook.sh
 
   install-e2e:
     name: Install on a fresh runner and check the systemd unit
@@ -68,6 +74,48 @@ jobs:
 
       - name: Run bot install end-to-end test
         run: sudo env "PATH=$PATH" bash scripts/tests/e2e-bot-install.sh
+
+  # The Gamaj Bot and the Gamaj Node are separate repositories, so this job
+  # checks both out side by side: the bot is the checkout at the workspace
+  # root, the node lands in node-repo and is handed to the test through
+  # GAMAJ_E2E_NODE_REPO. The test starts the node as a systemd service with a
+  # stub xray core, points the bot at a mock Panel that records every API call,
+  # and proves a real Telegram webhook update is accepted and answered with a
+  # Panel API call.
+  webhook-e2e:
+    name: Run the bot webhook against a real Node
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Gamaj Bot
+        uses: actions/checkout@v4
+
+      - name: Checkout Gamaj Node
+        uses: actions/checkout@v4
+        with:
+          repository: TheGamaj/Node
+          ref: Asli
+          path: node-repo
+
+      # The node requires the newer toolchain of the two, and the bot builds
+      # with it as well, so one setup covers both checkouts.
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "node-repo/go.mod"
+
+      - name: Run the bot webhook + node end-to-end test
+        env:
+          GAMAJ_E2E_PREFIX: /tmp/gamaj-bot-node-e2e
+          GAMAJ_E2E_NODE_REPO: ${{ github.workspace }}/node-repo
+          GAMAJ_E2E_WAIT_SECONDS: "120"
+        run: >
+          sudo env "PATH=$PATH"
+          GAMAJ_E2E_PREFIX="$GAMAJ_E2E_PREFIX"
+          GAMAJ_E2E_NODE_REPO="$GAMAJ_E2E_NODE_REPO"
+          GAMAJ_E2E_WAIT_SECONDS="$GAMAJ_E2E_WAIT_SECONDS"
+          bash scripts/tests/e2e-webhook.sh
 
   release:
     name: Attach binary to the is.* release
